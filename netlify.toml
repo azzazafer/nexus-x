@@ -1,0 +1,6 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[functions."api/nexus-cron"]
+  schedule = "0 6 * * 0"

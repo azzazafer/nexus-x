@@ -1,0 +1,101 @@
+import { NextResponse } from 'next/server';
+import Parser from 'rss-parser';
+import { google } from 'googleapis';
+
+export async function GET() {
+  try {
+    const parser = new Parser();
+    const feeds = [
+      'https://hnrss.org/frontpage?q=AI',
+      'https://feeds.feedburner.com/TheHackersNews'
+    ];
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    let markdownContent = `# Nexus-X Haftalık İstihbarat Raporu\n\nOluşturulma Tarihi: ${new Date().toISOString()}\n\n`;
+
+    for (const feedUrl of feeds) {
+      const feed = await parser.parseURL(feedUrl);
+      markdownContent += `## Kaynak: ${feed.title || feedUrl}\n\n`;
+
+      const recentItems = feed.items.filter(item => {
+        if (!item.isoDate) return false;
+        const itemDate = new Date(item.isoDate);
+        return itemDate >= sevenDaysAgo;
+      });
+
+      if (recentItems.length === 0) {
+        markdownContent += `Son 7 güne ait haber bulunamadı.\n\n`;
+      }
+
+      for (const item of recentItems) {
+        markdownContent += `### [${item.title}](${item.link})\n`;
+        markdownContent += `**Tarih:** ${item.isoDate}\n\n`;
+        if (item.contentSnippet || item.content) {
+            const summary = (item.contentSnippet || item.content || '').replace(/<[^>]*>?/gm, '').trim();
+            if (summary) {
+                markdownContent += `> ${summary.substring(0, 300)}...\n\n`;
+            }
+        }
+        markdownContent += `---\n\n`;
+      }
+    }
+
+    const credentialsStr = process.env.GOOGLE_PRIVATE_KEY 
+        ? process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n') 
+        : '';
+        
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: credentialsStr,
+      },
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+    });
+
+    const drive = google.drive({ version: 'v3', auth });
+    const folderId = process.env.DRIVE_FOLDER_ID;
+    const fileName = 'Nexus_Haftalik_Rapor.md';
+
+    let existingFileId = null;
+    if (folderId) {
+        const q = `name='${fileName}' and '${folderId}' in parents and trashed=false`;
+        const response = await drive.files.list({
+            q: q,
+            fields: 'files(id, name)',
+        });
+        
+        if (response.data.files && response.data.files.length > 0) {
+            existingFileId = response.data.files[0].id;
+        }
+    }
+
+    const fileMetadata = {
+      name: fileName,
+      ...(folderId && !existingFileId ? { parents: [folderId] } : {})
+    };
+
+    const media = {
+      mimeType: 'text/markdown',
+      body: markdownContent,
+    };
+
+    if (existingFileId) {
+      await drive.files.update({
+        fileId: existingFileId,
+        media: media,
+      });
+    } else {
+      await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+      });
+    }
+
+    return NextResponse.json({ success: true, message: 'Rapor başarıyla oluşturuldu ve yüklendi.' });
+  } catch (error: any) {
+    console.error('Hata:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
