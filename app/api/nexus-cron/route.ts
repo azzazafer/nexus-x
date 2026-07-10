@@ -86,42 +86,24 @@ export async function GET() {
 
     const drive = google.drive({ version: 'v3', auth });
     const folderId = process.env.DRIVE_FOLDER_ID;
-    const fileName = 'Nexus_Haftalik_Rapor.md';
-
-    let existingFileId = null;
-    if (folderId) {
-        const q = `name='${fileName}' and '${folderId}' in parents and trashed=false`;
-        const response = await drive.files.list({
-            q: q,
-            fields: 'files(id, name)',
-        });
-        
-        if (response.data.files && response.data.files.length > 0) {
-            existingFileId = response.data.files[0].id;
-        }
+    if (!folderId) {
+      throw new Error("DRIVE_FOLDER_ID is missing from environment variables.");
     }
-
     const fileMetadata = {
-      name: fileName,
-      parents: [process.env.DRIVE_FOLDER_ID as string]
+      name: `Nexus_Rapor_${new Date().toISOString().split('T')[0]}.md`,
+      parents: [folderId]
     };
-
     const media = {
       mimeType: 'text/markdown',
-      body: markdownContent,
+      body: markdownContent
     };
 
-    if (existingFileId) {
-      await drive.files.update({
-        fileId: existingFileId,
-        media: media,
-      });
-    } else {
-      await drive.files.create({
-        requestBody: fileMetadata,
-        media: media,
-      });
-    }
+    await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id',
+      supportsAllDrives: true
+    });
 
     return NextResponse.json({ success: true, message: 'Rapor başarıyla oluşturuldu ve yüklendi.' });
   } catch (error: any) {
