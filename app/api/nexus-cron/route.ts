@@ -103,7 +103,7 @@ export async function GET() {
 
     const fileMetadata = {
       name: fileName,
-      ...(folderId && !existingFileId ? { parents: [folderId] } : {})
+      parents: [process.env.DRIVE_FOLDER_ID as string]
     };
 
     const media = {
