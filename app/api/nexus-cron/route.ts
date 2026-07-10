@@ -86,13 +86,16 @@ export async function GET() {
 
     const drive = google.drive({ version: 'v3', auth });
     const folderId = process.env.DRIVE_FOLDER_ID;
+
     if (!folderId) {
       throw new Error("DRIVE_FOLDER_ID is missing from environment variables.");
     }
+
     const fileMetadata = {
       name: `Nexus_Rapor_${new Date().toISOString().split('T')[0]}.md`,
       parents: [folderId]
     };
+
     const media = {
       mimeType: 'text/markdown',
       body: markdownContent
@@ -105,7 +108,7 @@ export async function GET() {
       supportsAllDrives: true
     });
 
-    return NextResponse.json({ success: true, message: 'Rapor başarıyla oluşturuldu ve yüklendi.' });
+    return NextResponse.json({ success: true, message: 'Rapor başarıyla oluşturuldu ve Drive klasörüne yüklendi.' });
   } catch (error: any) {
     console.error('Hata:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
