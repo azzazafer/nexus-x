@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
-// Payload Interface
+// Incoming Lead Payload Interface
 export interface IncomingLeadPayload {
   name: string;
   phone: string;
@@ -43,14 +43,14 @@ function verifySentinelSignature(rawBody: string, signatureHeader: string | null
 }
 
 /**
- * Data Poisoning Defense: Strict String Sanitization
- * Strips HTML tags, trims whitespace, and truncates to safe maximum lengths.
+ * Data Poisoning Defense: XSS HTML Entity Neutralization
+ * Neutralizes HTML tags (< and >) while preserving full Unicode (foreign names, emojis, punctuation).
  */
 function sanitizeInput(str: string, maxLength: number = 500): string {
   if (!str) return '';
   return str
-    .replace(/<[^>]*>?/gm, '') // Strip HTML tags
-    .replace(/[^\w\s\+@\.\-\:\,\/]/gi, '') // Remove dangerous non-standard characters
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
     .trim()
     .slice(0, maxLength);
 }
@@ -112,14 +112,14 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString(),
     };
 
-    // 3. Supabase Server-Side Database Ingestion
+    // 3. Supabase Server-Side Database Ingestion (Strict Service Role Key Enforcement)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      console.error('Database Alert: Supabase environment variables are missing.');
+      console.error('Database Alert: SUPABASE_SERVICE_ROLE_KEY is missing.');
       return NextResponse.json(
-        { success: false, error: 'Database connection configuration error.' },
+        { success: false, error: 'Secure database connection misconfiguration.' },
         { status: 500 }
       );
     }
