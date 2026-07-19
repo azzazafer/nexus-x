@@ -81,7 +81,7 @@ export async function GET() {
         client_email: process.env.GOOGLE_CLIENT_EMAIL,
         private_key: credentialsStr,
       },
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
+      scopes: ['https://www.googleapis.com/auth/drive'],
     });
 
     const drive = google.drive({ version: 'v3', auth });
