@@ -110,6 +110,10 @@ export async function GET() {
 
     const targetFile = existingFiles[0];
 
+    if (!targetFile.id) {
+      throw new Error("Hedef dosya ID'si bulunamadı.");
+    }
+
     // Determine target mimeType
     // If it's a Google Doc (application/vnd.google-apps.document), update with text/plain
     const uploadMimeType = targetFile.mimeType === 'application/vnd.google-apps.document' 
