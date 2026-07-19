@@ -91,24 +91,58 @@ export async function GET() {
       throw new Error("DRIVE_FOLDER_ID is missing from environment variables.");
     }
 
-    const fileMetadata = {
-      name: `Nexus_Rapor_${new Date().toISOString().split('T')[0]}.md`,
-      parents: [folderId]
-    };
+    // List existing files in the folder to see if we can update one
+    const listResponse = await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'files(id, name)',
+    });
 
+    const existingFiles = listResponse.data.files || [];
     const media = {
       mimeType: 'text/markdown',
       body: markdownContent
     };
 
-    await drive.files.create({
-      requestBody: fileMetadata,
-      media: media,
-      fields: 'id',
-      supportsAllDrives: true
-    });
+    if (existingFiles.length > 0) {
+      // Update existing file owned by user (bypasses service account 0 MB quota limitation!)
+      const targetFile = existingFiles[0];
+      await drive.files.update({
+        fileId: targetFile.id,
+        media: media,
+      });
 
-    return NextResponse.json({ success: true, message: 'Rapor başarıyla oluşturuldu ve Drive klasörüne yüklendi.' });
+      return NextResponse.json({ 
+        success: true, 
+        message: `Rapor mevcut '${targetFile.name}' dosyası üzerine başarıyla güncellendi.` 
+      });
+    } else {
+      // Try creating a file
+      try {
+        const fileMetadata = {
+          name: `Nexus_Rapor_${new Date().toISOString().split('T')[0]}.md`,
+          parents: [folderId]
+        };
+
+        await drive.files.create({
+          requestBody: fileMetadata,
+          media: media,
+          fields: 'id',
+          supportsAllDrives: true
+        });
+
+        return NextResponse.json({ 
+          success: true, 
+          message: 'Rapor yeni dosya olarak Drive klasörüne yüklendi.' 
+        });
+      } catch (createErr: any) {
+        if (createErr.message?.includes('quota') || createErr.message?.includes('kotası')) {
+          throw new Error(
+            "Kişisel Google Drive kısıtlaması: Hizmet hesabının (Bot) yeni dosya oluşturma kotası yoktur. Lütfen 'Nexus_Haftalik_Rapor' klasörünüzün içine 'Nexus_Rapor.md' adında boş bir dosya oluşturun."
+          );
+        }
+        throw createErr;
+      }
+    }
   } catch (error: any) {
     console.error('Hata:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
