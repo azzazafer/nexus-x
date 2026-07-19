@@ -91,10 +91,10 @@ export async function GET() {
       throw new Error("DRIVE_FOLDER_ID is missing from environment variables.");
     }
 
-    // List existing files in the folder to see if we can update one
+    // List existing files in the folder to see if we can update one (excluding subfolders)
     const listResponse = await drive.files.list({
-      q: `'${folderId}' in parents and trashed=false`,
-      fields: 'files(id, name)',
+      q: `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name, mimeType)',
     });
 
     const existingFiles = listResponse.data.files || [];
